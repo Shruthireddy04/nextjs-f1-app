@@ -1,7 +1,6 @@
 import { MilvusClient, DataType } from "@zilliz/milvus2-sdk-node";
 import { PuppeteerWebBaseLoader } from "langchain/document_loaders/web/puppeteer";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { GoogleAuth } from "google-auth-library";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 import "dotenv/config";
@@ -9,7 +8,7 @@ import "dotenv/config";
 // Environment Variables
 const {
   GOOGLE_API_KEY,
-  MILVUS_COLLECTION = "f1_data"
+  MILVUS_COLLECTION = "f1_data1"
 } = process.env;
 
 // Gemini Client
@@ -18,9 +17,9 @@ const genAI = new GoogleGenerativeAI(GOOGLE_API_KEY!);
 // Web sources to embed
 const f1Data = [
   "https://en.wikipedia.org/wiki/Formula_One",
-  "https://en.wikipedia.org/wiki/List_of_Formula_One_World_Drivers%27_Champions",
-  "https://www.formula1.com/en/latest",
-  "https://www.skysports.com/f1",
+  // "https://en.wikipedia.org/wiki/List_of_Formula_One_World_Drivers%27_Champions",
+  // "https://www.formula1.com/en/latest",
+  // "https://www.skysports.com/f1",
 ];
 
 // Milvus Client
@@ -127,7 +126,7 @@ const embedWithGemini = async (text: string): Promise<number[]> => {
   return result.embedding.values;
 };
 
-const insertWithRetry = async (batch: any[], retries: number) => {
+const insertWithRetry = async (batch, retries: number) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       await milvus.insert({
@@ -135,7 +134,7 @@ const insertWithRetry = async (batch: any[], retries: number) => {
         fields_data: batch,
       });
       return;
-    } catch (err: any) {
+    } catch (err) {
       console.warn(`Insert failed (attempt ${attempt}/${retries}):`, err.message);
       if (attempt === retries) {
         throw new Error(`Insert failed after ${retries} attempts.`);
@@ -156,7 +155,7 @@ const loadSampleData = async () => {
       const content = await scrapePage(url);
       const chunks = await splitter.splitText(content);
 
-      let batch: any[] = [];
+      let batch = [];
       let totalInserted = 0;
 
       for await (const chunk of chunks) {

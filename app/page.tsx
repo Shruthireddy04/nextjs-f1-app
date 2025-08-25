@@ -1,69 +1,42 @@
 'use client';
-import Image from 'next/image';
-import { useChat } from 'ai/react';
-import { Message } from 'ai';
-import f1log from './assets/F1-Logo.png';
-import Bubble from './components/Bubble';
-import LoadingBubble from './components/LoadingBubble';
-import PromptSuggestionRow from './components/PromptSuggestionRow';
 
-const Home = () => {
-	const {
-		messages,
-		append,
-		handleSubmit,
-		handleInputChange,
-		input,
-		isLoading,
-	} = useChat({
-		api: '/api/chat',
-    //streaming: true,
-    id: "hello world" 
-	});
+import { useChat } from '@ai-sdk/react';
 
-	console.log(useChat())
+export default function Page() {
+  const { messages, input, handleSubmit, handleInputChange, status } =
+    useChat();
   
+   console.log(messages,"msg")
 
-	const noMessages = !messages || messages.length === 0;
+  return (
+    <div className='top-form' >
+      
+      <div className='form-cnt'>
+      {  messages.map(message => (
+        <div className={`${message.role}`} key={message.id}>
+          {/* <strong>{`${message.role}: `}</strong> */}
+          {message.parts.map((part, index) => {
+            switch (part.type) {
+              case 'text':
+                return <span   key={index}>{part.text}</span>;
 
-	const handlePrompt = async (text: string) => {
-		await append({ role: 'user', content: text });
-	};
+              // other cases can handle images, tool calls, etc
+            }
+          })}
+      
+        </div>
+      ))}
+      </div>
 
-	console.log(messages, 'msg');
-	return (
-		<main>
-			<Image src={f1log} width={250} alt="logo" />
-			<section>
-				{noMessages ? (
-					<>
-						<p className="starter-text">
-							Formula One (F1) is the highest class of worldwide racing for
-							open-wheel single-seater formula racing cars sanctioned by the
-							Fédération Internationale de lAutomobile (FIA).{' '}
-						</p>
-						<br />
-						<PromptSuggestionRow onPromptClick={handlePrompt} />
-					</>
-				) : (
-					<>
-						{messages.map((message, index) => (
-							<Bubble message={message} key={index} />
-						))}
-						{isLoading && <LoadingBubble />}
-					</>
-				)}
-			</section>
-			<form onSubmit={handleSubmit}>
-				<input
-					onChange={handleInputChange}
-					value={input}
-					placeholder="Ask me Question!"
-				/>
-				<input type="submit" />
-			</form>
-		</main>
-	);
-};
-
-export default Home;
+      <form onSubmit={handleSubmit}>
+        <input
+          value={input}
+          placeholder="Send a message..."
+          onChange={handleInputChange}
+          disabled={status !== 'ready'}
+          className='input-ele'
+        />
+      </form>
+    </div>
+  );
+}

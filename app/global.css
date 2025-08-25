@@ -1,38 +1,49 @@
-
-.bubble{
-    margin: 8px;
-    padding: 8px;
-    font-size: 15px;
-    border: none;
-    color: #383838;
-    box-shadow: #959da533 0 8px 24px;
-    width: 80%;
-    text-align: left;
+.user {
+	border-radius: 20px 20px 0 20px;
+	background-color: grey;
+	margin-left: auto;
+	padding: 10px;
+}
+.assistant {
+	border-radius: 20px 20px 20px 0;
+	background-color: grey;
+	padding: 10px;
 }
 
-.loader{
-    width: 60px;
-    margin: 10px;
-    aspect-ratio: 4;
-    background: no-repeat radial-gradient(circle closest-side,#383838 90%,#0000)0% 50%,
-    no-repeat radial-gradient(circle closest-side,#383838 90%,#0000)50% 50%,
-    no-repeat radial-gradient(circle closest-side,#383838 90%,#0000) 100% 0%;
-    background-size: calc(100%/3) 100%;
-    animation: loading 1s infinite linear ;
+.bg-cnt {
+	background: black;
+	color: white;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-top: 40px;
 }
-@keyframes loading{
-    33% {background-size: calc(100%/3) 0%, calc(100%/3) 100%, calc(100%/3) 100%;}
-    50% {background-size: calc(100%/3) 100%, calc(100%/3) 0%, calc(100%/3) 100%;}
-    66% {background-size: calc(100%/3) 100%, calc(100%/3) 100%, calc(100%/3) 0%;}
-
+.form-cnt {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	/* align-items: center; */
+	gap: 10px;
 }
-
-.bubble.user{
-    border-radius:  20px 20px 0 20px;
-    background-color: rgb(225, 244, 255);
-    margin-left: auto;
+.input-ele {
+	border-radius: 5px;
+	border-width: 0;
+	padding: 5px;
+	height: 30px;
+	width: 80%;
+	align-self: center;
+	position: fixed;
+	bottom: 50px;
+	@media (min-width: 800px) {
+		width: 60%;
+	}
 }
-.bubble.assistant{
-    border-radius:  20px 20px  20px 0;
-    background-color: #dce7ff;
+.span-ele {
+	background-color: grey;
+}
+.top-form {
+	width: 80%;
+	@media (min-width: 800px) {
+		width: 60%;
+	}
 }

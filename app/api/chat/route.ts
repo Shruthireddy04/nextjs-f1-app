@@ -1,104 +1,126 @@
-// app/api/chat/route.ts
-import { NextRequest } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+// import { google } from '@ai-sdk/google';
+import { generateText, streamText } from 'ai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
+import { NextResponse } from 'next/server';
 import { MilvusClient } from '@zilliz/milvus2-sdk-node';
+const MILVUS_ADDRESS = '127.0.0.1:19530'; // Change if hosted remotely
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
-const embedModel = genAI.getGenerativeModel({ model: 'embedding-001' });
-const chatModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const google = createGoogleGenerativeAI({
+	apiKey: process.env.GOOGLE_API_KEY,
+});
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
 
-const milvus = new MilvusClient({
-  address: '127.0.0.1:19530',
-  ssl: false,
+const client = new MilvusClient({
+	address: MILVUS_ADDRESS,
 });
 
-export async function POST(req: NextRequest) {
-  try {
-    const { messages } = await req.json();
-    const latestMsg = messages?.at(-1)?.content ?? '';
+async function searchChunks(queryVector, topK = 5) {
+	//  const searchResults = await client.search({
+	//   collection_name: "f1_data1",
+	//   vectors: [queryVector], // Query as batch of 1
+	//   params: { nprobe: 10 }, // Search parameter, tune as needed
+	//   limit: topK,
+	//   output_fields: ['url', 'chunkText'], // Fields to return
+	// });
+	const searchResults = await client.search({
+		collection_name: 'f1_data1',
+		vectors: [queryVector],
+		search_params: {
+			anns_field: 'vector',
+			topk: '5',
+			metric_type: 'COSINE',
+			params: JSON.stringify({ nprobe: 10 }),
+		},
+		output_fields: ['text'],
+	});
 
-    const embedRes = await embedModel.embedContent({
-      content: { role: 'user', parts: [{ text: latestMsg }] },
-    });
+	// console.log('✅ Search results:', searchResults);
+	return searchResults.results;
+}
 
-    const queryVector = embedRes.embedding.values;
+export async function POST(req) {
+	try {
+		const { messages } = await req.json();
+		const latestMsg = messages?.at(-1)?.content ?? '';
+		const embeddingModel = genAI.getGenerativeModel({ model: 'embedding-001' });
+		const embedresult = await embeddingModel.embedContent(latestMsg);
+		const results = await searchChunks(embedresult.embedding.values, 3);
 
-    await milvus.loadCollectionSync({ collection_name: 'f1_data' });
+		//console.log(results, 'res');
 
-    const searchRes = await milvus.search({
-      collection_name: 'f1_data',
-      vectors: [queryVector],
-      search_params: {
-        anns_field: 'vector',
-        topk: '5',
-        metric_type: 'COSINE',
-        params: JSON.stringify({ nprobe: 10 }),
-      },
-      output_fields: ['text'],
-    });
+		const context =
+			results
+				?.map((r) => r.text.trim())
+				.join('\n')
+				.substring(0, 5000) || ''; // Ensure it fits Gemini's limit
+		// const {text} = await generateText({
+		//     model: google('gemini-2.0-flash'),
+		//     prompt: `Based on the following website content, answer the user's question as accurately as possible.
+		//   If the full answer is NOT in the provided content, provide whatever relevant information is available.
+		//   Do NOT include information from external sources.
 
-    const context = searchRes.results?.map((r) => r.text).join('\n') || '';
+		//   Website Content:
+		//   ${context}
 
-    const prompt = `
-You are an AI Assistant specialized in Formula 1.
-Use the following context to answer the question.
+		//   User Query:
+		//   ${messages[0].text}
 
-CONTEXT:
-${context}
+		//   If you cannot find any relevant information from the content, respond with exactly: "Data not found".
+		// `,
+		//   });
 
-QUESTION:
-${latestMsg}`;
+		// return NextResponse.json({ response: text }, { status: 200 });
+		//console.log('Context:', context);
+		//  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    const result = await chatModel.generateContentStream({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    });
+		const prompt =    `Based on the following website content, answer the user's question as accurately as possible.
+		  If the full answer is NOT in the provided content, provide whatever relevant information is available.
+		  Do NOT include information from external sources.
 
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      async pull(controller) {
-        const messageId = 'chatcmpl-' + Math.random().toString(36).slice(2);
-    
-       try{ for await (const chunk of result.stream) {
-          const text = chunk.text();
-          console.log(text,"text")
-    
-          if (text) {
-            const payload = {
-              id: messageId,
-              object: 'chat.completion.chunk',
-              choices: [
-                {
-                  delta: {
-                    role: 'assistant',
-                    content: text,
-                  },
-                },
-              ],
-            };
-  
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
-          }
-        }}
-        catch(e){
-          console.log("error in stream Data",e)
-        }
-    
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      },
-    });
-    
-    console.log(stream,"stream")
+		  Website Content:
+		  ${context}
 
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    });
-  } catch (err) {
-    console.error('[CHAT API ERROR]', err);
-    return new Response('Internal Server Error', { status: 500 });
-  }
+		  User Query:
+		  ${messages[0].text}
+
+		  If you cannot find any relevant information from the content, respond with exactly: "Data not found".
+		`;
+
+		// 4. Generate stream
+		// const result = await model.generateContentStream({
+		//   contents: [{ role: 'user', parts: [{ text: prompt }] }],
+		// });
+
+		// const encoder = new TextEncoder();
+		// const stream = new ReadableStream({
+		//   async start(controller) {
+		//     for await (const chunk of result.stream) {
+		//       const text = chunk.text();
+		//       controller.enqueue(encoder.encode(text));
+		//     }
+		//     controller.close();
+		//   },
+		// });
+		const result = await streamText({
+			model: google('gemini-1.5-flash'),
+			system: prompt,
+			messages,
+		});
+		return result.toDataStreamResponse();
+		// 5. Return streamed response
+		//  return new Response(stream, {
+		//     headers: {
+		//       'Content-Type': 'text/event-stream',
+		//       'Cache-Control': 'no-cache',
+		//       Connection: 'keep-alive',
+		//     },
+		//   });
+	} catch (error) {
+		console.error('Chat API Error:', error);
+		return NextResponse.json(
+			{ error: 'Error generating response' },
+			{ status: 500 }
+		);
+	}
 }
